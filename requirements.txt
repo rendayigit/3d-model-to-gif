@@ -1,0 +1,4 @@
+pyrender
+trimesh
+imageio
+numpy

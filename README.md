@@ -1,11 +1,11 @@
 # 3d-model-to-gif
-Creates a gif file from a provided 3d model (ex a .gltf file) by rotating it 360 degress in approx 5 secs. Certain parameters can be modified via the script.
+
+Creates a gif file from a provided 3d model (ex a .glb file) by rotating it 360 degress in approx 4 secs. Certain parameters can be modified via the script.
 
 ## Requiements
 
-* python 3.7
-* `pip install pyrender`
-* `pip install requests`
+* python 3.7+
+* `pip install -r requirements.txt`
 
 ## Useful
 
