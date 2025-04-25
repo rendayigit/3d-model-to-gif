@@ -41,7 +41,7 @@ for name, geom in mesh.geometry.items():
     scene.add_node(mesh_node)
 
 # Set up an orthographic camera
-camera = OrthographicCamera(xmag=1.0, ymag=1.0)
+camera = OrthographicCamera(xmag=1.0, ymag=1.0, znear=0.1, zfar=1000.0)
 camera_node = Node(camera=camera, matrix=np.eye(4))
 scene.add_node(camera_node)
 
