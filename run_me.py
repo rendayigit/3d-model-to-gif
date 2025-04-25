@@ -14,6 +14,9 @@ np.infty = np.inf
 # Set the 3D model file path
 MESH_SOURCE = "emoji.glb"
 
+# Set the output GIF name based on the GLB file name
+OUTPUT_GIF = f"{MESH_SOURCE.rsplit('.', 1)[0]}.gif"
+
 # Adjust camera parameters to fit your model
 CAMERA_ZOOM = -2
 CAMERA_X = 0.0
@@ -24,7 +27,6 @@ LIGHTING_INTENSITY = 5.0
 ROTATE_RATE = math.pi / 2.0
 REFRESH_RATE = 10
 ANIMATION_DURATION = 4.3  # seconds
-OUTPUT_GIF = "out.gif"
 
 # Create the scene with a black background
 scene = Scene(bg_color=[0, 0, 0])
