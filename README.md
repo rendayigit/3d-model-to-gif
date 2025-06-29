@@ -1,11 +1,29 @@
 # 3d-model-to-gif
 
-Creates a gif file from a provided 3d model (ex a .glb file or a .gltf file) by rotating it 360 degress in approx 4 secs. Certain parameters can be modified via the script.
+Creates a gif file from a provided 3d model (ex a .glb file or a .gltf file) by rotating it 360 degress in approx 4 secs. Certain parameters can be modified via the script or the gui.
 
 ## Requiements
 
 * python 3.7+
 * `pip install -r requirements.txt`
+
+## Usage
+
+### GUI Version (Recommended)
+
+For a user-friendly graphical interface:
+
+```bash
+python gui.py
+```
+
+### Console Version
+
+For command-line usage:
+
+```bash
+python console.py
+```
 
 ## Useful
 

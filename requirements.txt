@@ -2,3 +2,4 @@ pyrender
 trimesh
 imageio
 numpy
+pyside6
