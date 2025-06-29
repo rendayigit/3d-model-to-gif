@@ -5,7 +5,7 @@
             "name": "Python: Current File",
             "type": "debugpy",
             "request": "launch",
-            "program": "run_me.py",
+            "program": "gui.py",
             "console": "integratedTerminal",
             "cwd": "${workspaceFolder}"
         }

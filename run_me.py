@@ -28,54 +28,61 @@ ROTATE_RATE = math.pi / 2.0
 REFRESH_RATE = 10
 ANIMATION_DURATION = 4.3  # seconds
 
-# Create the scene with a black background
-scene = Scene(bg_color=[0, 0, 0])
 
-# Load the 3D model
-mesh = trimesh.load(MESH_SOURCE)
+def main():
+    global MESH_SOURCE, OUTPUT_GIF, CAMERA_ZOOM, CAMERA_X, CAMERA_Y, LIGHTING_INTENSITY, ROTATE_RATE, REFRESH_RATE, ANIMATION_DURATION
+    # Create the scene with a black background
+    scene = Scene(bg_color=[0, 0, 0])
 
-# Add all geometries from the mesh to the pyrender scene
-for name, geom in mesh.geometry.items():
-    mesh_instance = Mesh.from_trimesh(geom)
-    mesh_node = Node(mesh=mesh_instance, matrix=np.eye(4))
-    scene.add_node(mesh_node)
+    # Load the 3D model
+    mesh = trimesh.load(MESH_SOURCE)
 
-# Set up an orthographic camera
-camera = OrthographicCamera(xmag=1.0, ymag=1.0, znear=0.1, zfar=1000.0)
-camera_node = Node(camera=camera, matrix=np.eye(4))
-scene.add_node(camera_node)
+    # Add all geometries from the mesh to the pyrender scene
+    for name, geom in mesh.geometry.items():
+        mesh_instance = Mesh.from_trimesh(geom)
+        mesh_node = Node(mesh=mesh_instance, matrix=np.eye(4))
+        scene.add_node(mesh_node)
 
-# Define the camera pose
-cam_pose = np.array(
-    [
-        [1.0, 0.0, 0.0, CAMERA_X],
-        [0.0, 1.0, 0.0, CAMERA_Y],
-        [0.0, 0.0, 1.0, -CAMERA_ZOOM],
-        [0.0, 0.0, 0.0, 1.0],
-    ]
-)
-scene.set_pose(camera_node, pose=cam_pose)
+    # Set up an orthographic camera
+    camera = OrthographicCamera(xmag=1.0, ymag=1.0, znear=0.1, zfar=1000.0)
+    camera_node = Node(camera=camera, matrix=np.eye(4))
+    scene.add_node(camera_node)
 
-# Initialize the viewer with updated parameters
-viewer = Viewer(
-    scene,
-    run_in_thread=True,
-    record=True,
-    rotate=True,
-    use_raymond_lighting=True,
-    use_direct_lighting=True,
-    rotate_rate=ROTATE_RATE,
-    refresh_rate=REFRESH_RATE,
-    lighting_intensity=LIGHTING_INTENSITY,
-    rotate_axis=[0, 1, 0],
-)
+    # Define the camera pose
+    cam_pose = np.array(
+        [
+            [1.0, 0.0, 0.0, CAMERA_X],
+            [0.0, 1.0, 0.0, CAMERA_Y],
+            [0.0, 0.0, 1.0, -CAMERA_ZOOM],
+            [0.0, 0.0, 0.0, 1.0],
+        ]
+    )
+    scene.set_pose(camera_node, pose=cam_pose)
 
-# Allow the viewer to run for a few seconds
-time.sleep(ANIMATION_DURATION)
+    # Initialize the viewer with updated parameters
+    viewer = Viewer(
+        scene,
+        run_in_thread=True,
+        record=True,
+        rotate=True,
+        use_raymond_lighting=True,
+        use_direct_lighting=True,
+        rotate_rate=ROTATE_RATE,
+        refresh_rate=REFRESH_RATE,
+        lighting_intensity=LIGHTING_INTENSITY,
+        rotate_axis=[0, 1, 0],
+    )
 
-# Close the viewer and save the GIF
-viewer.close_external()
+    # Allow the viewer to run for a few seconds
+    time.sleep(ANIMATION_DURATION)
 
-# Save the GIF
-imageio.mimsave(OUTPUT_GIF, viewer._saved_frames, fps=REFRESH_RATE, loop=0)
-print(f"GIF saved as '{OUTPUT_GIF}'")
+    # Close the viewer and save the GIF
+    viewer.close_external()
+
+    # Save the GIF
+    imageio.mimsave(OUTPUT_GIF, viewer._saved_frames, fps=REFRESH_RATE, loop=0)
+    print(f"GIF saved as '{OUTPUT_GIF}'")
+
+
+if __name__ == "__main__":
+    main()
