@@ -24,7 +24,7 @@ class MainWindow(QWidget):
         super().__init__()
         self.setWindowTitle("3D Model to GIF Converter")
         self.setMinimumWidth(400)
-        layout = QVBoxLayout()
+        self.ui_layout = QVBoxLayout()
 
         # Model file selection
         file_layout = QHBoxLayout()
@@ -34,7 +34,17 @@ class MainWindow(QWidget):
         file_layout.addWidget(QLabel("3D Model (.glb):"))
         file_layout.addWidget(self.file_edit)
         file_layout.addWidget(file_btn)
-        layout.addLayout(file_layout)
+        self.ui_layout.addLayout(file_layout)
+
+        # Output GIF name and path (moved here)
+        output_layout = QHBoxLayout()
+        self.output_edit = QLineEdit(run_me.OUTPUT_GIF)
+        output_btn = QPushButton("Browse...")
+        output_layout.addWidget(QLabel("Output GIF:"))
+        output_layout.addWidget(self.output_edit)
+        output_layout.addWidget(output_btn)
+        self.ui_layout.addLayout(output_layout)
+        output_btn.clicked.connect(self.browse_output)
 
         # Camera zoom
         zoom_layout = QHBoxLayout()
@@ -43,7 +53,7 @@ class MainWindow(QWidget):
         self.zoom_spin.setValue(run_me.CAMERA_ZOOM)
         zoom_layout.addWidget(QLabel("Camera Zoom:"))
         zoom_layout.addWidget(self.zoom_spin)
-        layout.addLayout(zoom_layout)
+        self.ui_layout.addLayout(zoom_layout)
 
         # Camera X/Y
         camxy_layout = QHBoxLayout()
@@ -57,7 +67,7 @@ class MainWindow(QWidget):
         camxy_layout.addWidget(self.x_spin)
         camxy_layout.addWidget(QLabel("Y:"))
         camxy_layout.addWidget(self.y_spin)
-        layout.addLayout(camxy_layout)
+        self.ui_layout.addLayout(camxy_layout)
 
         # Lighting intensity
         light_layout = QHBoxLayout()
@@ -66,7 +76,7 @@ class MainWindow(QWidget):
         self.light_spin.setValue(run_me.LIGHTING_INTENSITY)
         light_layout.addWidget(QLabel("Lighting Intensity:"))
         light_layout.addWidget(self.light_spin)
-        layout.addLayout(light_layout)
+        self.ui_layout.addLayout(light_layout)
 
         # Rotate rate
         rotate_layout = QHBoxLayout()
@@ -77,7 +87,7 @@ class MainWindow(QWidget):
         self.rotate_spin.setValue(run_me.ROTATE_RATE * 180 / math.pi)
         rotate_layout.addWidget(QLabel("Rotate Rate (deg/s):"))
         rotate_layout.addWidget(self.rotate_spin)
-        layout.addLayout(rotate_layout)
+        self.ui_layout.addLayout(rotate_layout)
 
         # Refresh rate
         refresh_layout = QHBoxLayout()
@@ -86,7 +96,7 @@ class MainWindow(QWidget):
         self.refresh_spin.setValue(run_me.REFRESH_RATE)
         refresh_layout.addWidget(QLabel("Refresh Rate (fps):"))
         refresh_layout.addWidget(self.refresh_spin)
-        layout.addLayout(refresh_layout)
+        self.ui_layout.addLayout(refresh_layout)
 
         # Animation duration
         duration_layout = QHBoxLayout()
@@ -95,24 +105,27 @@ class MainWindow(QWidget):
         self.duration_spin.setValue(run_me.ANIMATION_DURATION)
         duration_layout.addWidget(QLabel("Animation Duration (s):"))
         duration_layout.addWidget(self.duration_spin)
-        layout.addLayout(duration_layout)
+        self.ui_layout.addLayout(duration_layout)
 
-        # Output GIF name
-        output_layout = QHBoxLayout()
-        self.output_edit = QLineEdit(run_me.OUTPUT_GIF)
-        output_layout.addWidget(QLabel("Output GIF:"))
-        output_layout.addWidget(self.output_edit)
-        layout.addLayout(output_layout)
 
         # Run button
         self.run_btn = QPushButton("Create GIF")
         self.run_btn.clicked.connect(self.run_conversion)
-        layout.addWidget(self.run_btn)
+        self.ui_layout.addWidget(self.run_btn)
 
         self.status_label = QLabel()
-        layout.addWidget(self.status_label)
+        self.ui_layout.addWidget(self.status_label)
 
-        self.setLayout(layout)
+        self.setLayout(self.ui_layout)
+
+    def browse_output(self):
+        file, _ = QFileDialog.getSaveFileName(
+            self, "Select Output GIF", self.output_edit.text(), "GIF Files (*.gif)"
+        )
+        if file:
+            if not file.lower().endswith(".gif"):
+                file += ".gif"
+            self.output_edit.setText(file)
 
     def browse_file(self):
         file, _ = QFileDialog.getOpenFileName(
