@@ -8,7 +8,6 @@ import numpy as np
 import pytest
 
 from src.renderer import (
-    BackgroundPreset,
     CameraSettings,
     GifSettings,
     ImageSettings,
@@ -77,44 +76,6 @@ class TestLightingPreset:
 
         warm = presets["warm"]
         assert warm.color[0] > warm.color[2]  # Red > Blue for warm
-
-
-class TestBackgroundPreset:
-    """Tests for BackgroundPreset dataclass."""
-
-    def test_preset_creation(self):
-        """Test creating a background preset."""
-        preset = BackgroundPreset("Test", (255, 255, 255, 255))
-        assert preset.name == "Test"
-        assert preset.color == (255, 255, 255, 255)
-        assert not preset.is_transparent
-        assert not preset.is_gradient
-
-    def test_transparent_preset(self):
-        """Test transparent background preset."""
-        preset = BackgroundPreset("Trans", (0, 0, 0, 0), is_transparent=True)
-        assert preset.is_transparent
-
-    def test_gradient_preset(self):
-        """Test gradient background preset."""
-        preset = BackgroundPreset(
-            "Grad",
-            (0, 0, 0, 0),
-            is_gradient=True,
-            gradient_top=(100, 100, 100),
-            gradient_bottom=(50, 50, 50),
-        )
-        assert preset.is_gradient
-        assert preset.gradient_top == (100, 100, 100)
-        assert preset.gradient_bottom == (50, 50, 50)
-
-    def test_get_presets(self):
-        """Test that all presets are available."""
-        presets = BackgroundPreset.get_presets()
-        expected_keys = ["black", "white", "gray", "dark_gray", "transparent", "blue", "gradient"]
-        for key in expected_keys:
-            assert key in presets
-            assert isinstance(presets[key], BackgroundPreset)
 
 
 class TestGifSettings:

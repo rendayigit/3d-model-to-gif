@@ -32,13 +32,13 @@ tests/
 
 - `CameraSettings` - Dataclass for camera configuration
 - `LightingPreset` - Dataclass for lighting configuration
-- `BackgroundPreset` - Dataclass for background configuration
 - `GifSettings` - Dataclass for GIF animation settings
 - `ImageSettings` - Dataclass for static image settings
+- `render_single_frame()` - Render a single frame with transparent background
 - `render_image()` - Render a single preview image
 - `render_preview_set()` - Render multiple angles with same settings
 - `render_all_previews()` - Comprehensive export with multiple options
-- `render_gif()` - Create animated GIF
+- `render_gif()` - Create animated GIF (offscreen, no window)
 
 ### app.py
 
@@ -56,11 +56,6 @@ tests/
 - Ruff for linting
 
 ## Common Tasks
-
-### Adding a new background preset
-
-1. Add entry to `BackgroundPreset.get_presets()` in renderer.py
-2. The GUI will automatically pick it up
 
 ### Adding a new lighting preset
 

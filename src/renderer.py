@@ -2,16 +2,14 @@
 Core rendering module for 3D model preview generation.
 
 This module provides functions for loading 3D models and rendering them
-to images and GIFs with various camera, lighting, and background options.
+to images and GIFs with transparent backgrounds.
 """
 
 import math
 import os
-import time
 from dataclasses import dataclass, field
 from typing import Optional
 
-import imageio
 import numpy as np
 import trimesh
 from PIL import Image
@@ -21,8 +19,8 @@ from pyrender import (
     Node,
     OffscreenRenderer,
     OrthographicCamera,
+    RenderFlags,
     Scene,
-    Viewer,
 )
 
 # Fix for numpy compatibility
@@ -76,31 +74,6 @@ class LightingPreset:
 
 
 @dataclass
-class BackgroundPreset:
-    """Background configuration preset."""
-
-    name: str
-    color: tuple[int, int, int, int]  # RGBA
-    is_transparent: bool = False
-    is_gradient: bool = False
-    gradient_top: tuple[int, int, int] = (50, 50, 80)
-    gradient_bottom: tuple[int, int, int] = (20, 20, 40)
-
-    @classmethod
-    def get_presets(cls) -> dict[str, "BackgroundPreset"]:
-        """Get all available background presets."""
-        return {
-            "black": cls("Black", (0, 0, 0, 255)),
-            "white": cls("White", (255, 255, 255, 255)),
-            "gray": cls("Gray", (128, 128, 128, 255)),
-            "dark_gray": cls("Dark Gray", (64, 64, 64, 255)),
-            "transparent": cls("Transparent", (0, 0, 0, 0), is_transparent=True),
-            "blue": cls("Blue", (30, 60, 114, 255)),
-            "gradient": cls("Gradient", (0, 0, 0, 0), is_gradient=True),
-        }
-
-
-@dataclass
 class GifSettings:
     """Settings for GIF generation."""
 
@@ -108,6 +81,8 @@ class GifSettings:
     fps: int = 15
     rotate_speed: float = 90.0  # degrees per second
     lighting_intensity: float = 5.0
+    width: int = 512
+    height: int = 512
 
 
 @dataclass
@@ -146,38 +121,6 @@ def create_rotation_matrix(angle_deg: float, axis: str = "y") -> np.ndarray:
     return matrices.get(axis, np.eye(4))
 
 
-def apply_gradient_background(
-    image: np.ndarray,
-    top_color: tuple[int, int, int] = (50, 50, 80),
-    bottom_color: tuple[int, int, int] = (20, 20, 40),
-) -> np.ndarray:
-    """
-    Apply a vertical gradient background to an image with transparency.
-
-    Args:
-        image: Input image as numpy array (with alpha channel).
-        top_color: RGB color for the top of the gradient.
-        bottom_color: RGB color for the bottom of the gradient.
-
-    Returns:
-        Image with gradient background applied.
-    """
-    height, width = image.shape[:2]
-    gradient = np.zeros((height, width, 3), dtype=np.uint8)
-
-    for y in range(height):
-        ratio = y / height
-        color = tuple(int(top_color[i] * (1 - ratio) + bottom_color[i] * ratio) for i in range(3))
-        gradient[y, :] = color
-
-    if image.shape[2] == 4:
-        alpha = image[:, :, 3:4] / 255.0
-        rgb = image[:, :, :3]
-        result = (rgb * alpha + gradient * (1 - alpha)).astype(np.uint8)
-        return np.concatenate([result, np.full((height, width, 1), 255, dtype=np.uint8)], axis=2)
-    return image
-
-
 def load_model(filepath: str) -> trimesh.Trimesh:
     """
     Load a 3D model from file.
@@ -190,7 +133,6 @@ def load_model(filepath: str) -> trimesh.Trimesh:
 
     Raises:
         FileNotFoundError: If the model file doesn't exist.
-        ValueError: If the file format is not supported.
     """
     if not os.path.exists(filepath):
         raise FileNotFoundError(f"Model file not found: {filepath}")
@@ -199,35 +141,28 @@ def load_model(filepath: str) -> trimesh.Trimesh:
 
 
 # =============================================================================
-# Rendering Functions
+# Scene Creation
 # =============================================================================
 
 
 def create_scene_with_model(
     mesh: trimesh.Trimesh,
-    background: BackgroundPreset,
     rotation_angle: float = 0,
     wireframe: bool = False,
 ) -> Scene:
     """
-    Create a pyrender scene with the loaded model.
+    Create a pyrender scene with the loaded model and transparent background.
 
     Args:
         mesh: Loaded trimesh model.
-        background: Background preset to use.
         rotation_angle: Angle to rotate the model (degrees).
         wireframe: Whether to render in wireframe mode.
 
     Returns:
         Configured pyrender Scene.
     """
-    # Determine background color for scene
-    if background.is_transparent or background.is_gradient:
-        bg_color = [0, 0, 0, 0]
-    else:
-        bg_color = [c / 255.0 for c in background.color[:3]]
-
-    scene = Scene(bg_color=bg_color, ambient_light=[0.3, 0.3, 0.3])
+    # Transparent background
+    scene = Scene(bg_color=[0, 0, 0, 0], ambient_light=[0.3, 0.3, 0.3])
 
     # Calculate rotation matrix
     rotation = create_rotation_matrix(rotation_angle, "y")
@@ -281,25 +216,66 @@ def add_lighting_to_scene(scene: Scene, lighting: LightingPreset) -> None:
         scene.add_node(Node(light=light, matrix=light_pose))
 
 
+# =============================================================================
+# Rendering Functions
+# =============================================================================
+
+
+def render_single_frame(
+    mesh: trimesh.Trimesh,
+    camera: CameraSettings,
+    lighting: LightingPreset,
+    width: int,
+    height: int,
+    angle: float = 0,
+    wireframe: bool = False,
+) -> np.ndarray:
+    """
+    Render a single frame of the model with transparent background.
+
+    Args:
+        mesh: Loaded trimesh model.
+        camera: Camera settings.
+        lighting: Lighting preset.
+        width: Image width.
+        height: Image height.
+        angle: Rotation angle in degrees.
+        wireframe: Whether to render in wireframe mode.
+
+    Returns:
+        RGBA image as numpy array.
+    """
+    scene = create_scene_with_model(mesh, angle, wireframe)
+    add_camera_to_scene(scene, camera)
+    add_lighting_to_scene(scene, lighting)
+
+    renderer = OffscreenRenderer(width, height)
+    try:
+        # Render with RGBA flag for transparency
+        color, _ = renderer.render(scene, flags=RenderFlags.RGBA)
+    finally:
+        renderer.delete()
+
+    return color
+
+
 def render_image(
     model_path: str,
     output_path: str,
     camera: CameraSettings,
     lighting: LightingPreset,
-    background: BackgroundPreset,
     image_settings: ImageSettings,
     angle: float = 0,
     wireframe: bool = False,
 ) -> str:
     """
-    Render a single image of the 3D model.
+    Render a single image of the 3D model with transparent background.
 
     Args:
         model_path: Path to the 3D model file.
-        output_path: Path to save the rendered image.
+        output_path: Path to save the rendered image (PNG).
         camera: Camera settings.
         lighting: Lighting preset.
-        background: Background preset.
         image_settings: Image dimensions and settings.
         angle: Rotation angle in degrees.
         wireframe: Whether to render in wireframe mode.
@@ -309,31 +285,13 @@ def render_image(
     """
     mesh = load_model(model_path)
 
-    scene = create_scene_with_model(mesh, background, angle, wireframe)
-    add_camera_to_scene(scene, camera)
-    add_lighting_to_scene(scene, lighting)
+    color = render_single_frame(
+        mesh, camera, lighting, image_settings.width, image_settings.height, angle, wireframe
+    )
 
-    # Render
-    renderer = OffscreenRenderer(image_settings.width, image_settings.height)
-    try:
-        flags = 4 if (background.is_transparent or background.is_gradient) else 0
-        color, _ = renderer.render(scene, flags=flags)
-    finally:
-        renderer.delete()
-
-    # Apply gradient if needed
-    if background.is_gradient:
-        color = apply_gradient_background(
-            color, background.gradient_top, background.gradient_bottom
-        )
-
-    # Save image
+    # Save image with transparency
     os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
-
-    if background.is_transparent:
-        Image.fromarray(color).save(output_path, "PNG")
-    else:
-        imageio.imwrite(output_path, color)
+    Image.fromarray(color).save(output_path, "PNG")
 
     return output_path
 
@@ -343,20 +301,18 @@ def render_preview_set(
     output_dir: str,
     camera: CameraSettings,
     lighting_key: str,
-    background_key: str,
     image_settings: ImageSettings,
     wireframe: bool = False,
     progress_callback: Optional[callable] = None,
 ) -> list[str]:
     """
-    Render a set of preview images from multiple angles.
+    Render a set of preview images from multiple angles with transparent background.
 
     Args:
         model_path: Path to the 3D model file.
         output_dir: Directory to save rendered images.
         camera: Camera settings.
         lighting_key: Key for the lighting preset.
-        background_key: Key for the background preset.
         image_settings: Image settings including angles.
         wireframe: Whether to render in wireframe mode.
         progress_callback: Optional callback for progress updates.
@@ -365,36 +321,32 @@ def render_preview_set(
         List of paths to saved images.
     """
     lighting = LightingPreset.get_presets().get(lighting_key)
-    background = BackgroundPreset.get_presets().get(background_key)
-
     if not lighting:
         raise ValueError(f"Unknown lighting preset: {lighting_key}")
-    if not background:
-        raise ValueError(f"Unknown background preset: {background_key}")
 
     os.makedirs(output_dir, exist_ok=True)
     saved_paths = []
+    mesh = load_model(model_path)
 
     total = len(image_settings.angles)
     for i, angle in enumerate(image_settings.angles):
         # Build filename
         mode_suffix = "_wireframe" if wireframe else ""
-        bg_suffix = f"_{background_key}" if background_key != "black" else ""
         light_suffix = f"_{lighting_key}" if lighting_key != "default" else ""
-        filename = f"preview_{angle:03d}deg{mode_suffix}{bg_suffix}{light_suffix}.png"
+        filename = f"preview_{angle:03d}deg{mode_suffix}{light_suffix}.png"
         output_path = os.path.join(output_dir, filename)
 
         try:
-            render_image(
-                model_path,
-                output_path,
+            color = render_single_frame(
+                mesh,
                 camera,
                 lighting,
-                background,
-                image_settings,
+                image_settings.width,
+                image_settings.height,
                 angle,
                 wireframe,
             )
+            Image.fromarray(color).save(output_path, "PNG")
             saved_paths.append(output_path)
         except Exception as e:
             print(f"Error rendering angle {angle}: {e}")
@@ -411,20 +363,18 @@ def render_all_previews(
     output_dir: str,
     camera: CameraSettings,
     lighting_keys: list[str],
-    background_keys: list[str],
     image_settings: ImageSettings,
     include_wireframe: bool = True,
     progress_callback: Optional[callable] = None,
 ) -> dict[str, list[str]]:
     """
-    Render comprehensive preview sets with multiple options.
+    Render preview sets with multiple lighting options and transparent background.
 
     Args:
         model_path: Path to the 3D model file.
         output_dir: Base directory for output.
         camera: Camera settings.
         lighting_keys: List of lighting preset keys to use.
-        background_keys: List of background preset keys to use.
         image_settings: Image settings.
         include_wireframe: Whether to include wireframe renders.
         progress_callback: Optional callback for progress updates.
@@ -436,26 +386,24 @@ def render_all_previews(
     all_paths = {}
 
     # Calculate total renders for progress
-    total_sets = len(background_keys) * len(lighting_keys)
+    total_sets = len(lighting_keys)
     if include_wireframe:
         total_sets += 1
 
     current_set = 0
 
-    # Standard renders
-    for bg_key in background_keys:
-        for light_key in lighting_keys:
-            category = f"{bg_key}_{light_key}"
-            subdir = os.path.join(output_dir, category)
+    # Standard renders with different lighting
+    for light_key in lighting_keys:
+        subdir = os.path.join(output_dir, light_key)
 
-            if progress_callback:
-                progress_callback(current_set, total_sets, f"Rendering {category}...")
+        if progress_callback:
+            progress_callback(current_set, total_sets, f"Rendering {light_key} lighting...")
 
-            paths = render_preview_set(
-                model_path, subdir, camera, light_key, bg_key, image_settings, wireframe=False
-            )
-            all_paths[category] = paths
-            current_set += 1
+        paths = render_preview_set(
+            model_path, subdir, camera, light_key, image_settings, wireframe=False
+        )
+        all_paths[light_key] = paths
+        current_set += 1
 
     # Wireframe renders
     if include_wireframe:
@@ -464,7 +412,7 @@ def render_all_previews(
 
         wireframe_dir = os.path.join(output_dir, "wireframe")
         wireframe_paths = render_preview_set(
-            model_path, wireframe_dir, camera, "default", "white", image_settings, wireframe=True
+            model_path, wireframe_dir, camera, "default", image_settings, wireframe=True
         )
         all_paths["wireframe"] = wireframe_paths
 
@@ -479,7 +427,9 @@ def render_gif(
     progress_callback: Optional[callable] = None,
 ) -> str:
     """
-    Render an animated GIF of the rotating model.
+    Render an animated GIF of the rotating model with transparent background.
+
+    Uses offscreen rendering (no window opens).
 
     Args:
         model_path: Path to the 3D model file.
@@ -493,58 +443,52 @@ def render_gif(
     """
     mesh = load_model(model_path)
 
-    # Create scene with black background
-    scene = Scene(bg_color=[0, 0, 0])
+    # Calculate frames needed
+    total_frames = int(gif_settings.duration * gif_settings.fps)
+    degrees_per_frame = gif_settings.rotate_speed / gif_settings.fps
 
-    # Add geometries
-    if hasattr(mesh, "geometry"):
-        for geom in mesh.geometry.values():
-            mesh_instance = Mesh.from_trimesh(geom)
-            scene.add_node(Node(mesh=mesh_instance, matrix=np.eye(4)))
-    else:
-        mesh_instance = Mesh.from_trimesh(mesh)
-        scene.add_node(Node(mesh=mesh_instance, matrix=np.eye(4)))
+    # Create lighting preset from intensity
+    lighting = LightingPreset("GIF", gif_settings.lighting_intensity, (1.0, 1.0, 1.0))
 
-    # Add camera
-    camera_obj = OrthographicCamera(xmag=1.0, ymag=1.0, znear=0.1, zfar=1000.0)
-    camera_node = Node(camera=camera_obj, matrix=camera.get_pose_matrix())
-    scene.add_node(camera_node)
-
-    # Create viewer and record
-    if progress_callback:
-        progress_callback(0, 100, "Starting GIF recording...")
-
-    viewer = Viewer(
-        scene,
-        run_in_thread=True,
-        record=True,
-        rotate=True,
-        use_raymond_lighting=True,
-        use_direct_lighting=True,
-        rotate_rate=math.radians(gif_settings.rotate_speed),
-        refresh_rate=gif_settings.fps,
-        lighting_intensity=gif_settings.lighting_intensity,
-        rotate_axis=[0, 1, 0],
-    )
-
-    # Let the viewer run
-    time.sleep(gif_settings.duration)
+    frames = []
 
     if progress_callback:
-        progress_callback(50, 100, "Saving GIF...")
+        progress_callback(0, total_frames, "Rendering frames...")
 
-    # Close and save
-    viewer.close_external()
+    for i in range(total_frames):
+        angle = i * degrees_per_frame
+
+        # Render frame with transparency
+        color = render_single_frame(
+            mesh, camera, lighting, gif_settings.width, gif_settings.height, angle, wireframe=False
+        )
+        frames.append(color)
+
+        if progress_callback:
+            progress_callback(i + 1, total_frames, f"Rendering frame {i + 1}/{total_frames}")
+
+    if progress_callback:
+        progress_callback(total_frames, total_frames, "Saving GIF...")
 
     # Ensure output directory exists
     os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
 
-    # Save the GIF
-    # Access internal frames (this is the documented way for pyrender)
-    frames = viewer._saved_frames
-    imageio.mimsave(output_path, frames, fps=gif_settings.fps, loop=0)
+    # Save as GIF with transparency
+    # Convert RGBA frames to PIL Images for proper GIF transparency handling
+    pil_frames = [Image.fromarray(frame) for frame in frames]
+
+    # Save with transparency - GIF uses palette-based transparency
+    pil_frames[0].save(
+        output_path,
+        save_all=True,
+        append_images=pil_frames[1:],
+        duration=int(1000 / gif_settings.fps),  # milliseconds per frame
+        loop=0,
+        transparency=0,
+        disposal=2,  # Restore to background between frames
+    )
 
     if progress_callback:
-        progress_callback(100, 100, f"GIF saved: {output_path}")
+        progress_callback(total_frames, total_frames, f"GIF saved: {output_path}")
 
     return output_path
