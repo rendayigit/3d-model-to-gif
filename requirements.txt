@@ -1,5 +1,13 @@
-pyrender
-trimesh
-imageio
-numpy
-pyside6
+# Model Preview Generator
+# Core dependencies
+pyrender>=0.1.45
+trimesh>=4.0.0
+imageio>=2.31.0
+numpy>=1.24.0
+pillow>=10.0.0
+
+# GUI framework
+PySide6>=6.5.0
+
+# Optional: for additional 3D format support
+# pyglet<2  # Required for pyrender viewer on some systems
